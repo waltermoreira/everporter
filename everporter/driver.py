@@ -15,12 +15,19 @@ class Evernote(object):
     HOST = "www.evernote.com"
 
     def __init__(self, auth_token):
-        self.user_store_http_client = THttpClient.THttpClient(self.user_store_uri)
-        self.user_store_protocol = TBinaryProtocol.TBinaryProtocol(
-            self.user_store_http_client)
-        self.user_store = UserStore.Client(self.user_store_protocol)
-
+        self.user_store = self.store(self.user_store_uri, UserStore)
         self.check_version()
+        self.auth_token = auth_token
+        self.note_store_url = self.user_store.getNoteStoreUrl(self.auth_token)
+        self.note_store = self.store(self.note_store_url, NoteStore)
+
+    def notebooks(self):
+        return self.note_store.listNotebooks(self.auth_token)
+
+    def store(self, url, store_class):
+        http_client = THttpClient.THttpClient(url)
+        protocol = TBinaryProtocol.TBinaryProtocol(http_client)
+        return getattr(store_class, 'Client')(protocol)
 
     @property
     def user_store_uri(self):
