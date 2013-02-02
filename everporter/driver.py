@@ -1,5 +1,6 @@
 import hashlib
 import binascii
+from functools import wraps
 import thrift.protocol.TBinaryProtocol as TBinaryProtocol
 import thrift.transport.THttpClient as THttpClient
 import evernote.edam.userstore.UserStore as UserStore
@@ -8,6 +9,20 @@ import evernote.edam.notestore.NoteStore as NoteStore
 import evernote.edam.type.ttypes as Types
 
 authToken = "S=s1:U=88856:E=142aa964ffc:C=13b52e523fc:P=1cd:A=en-devtoken:H=bedb6afa586c565eb2d9233d552ec8a0"
+
+
+def cached(f):
+    @wraps(f)
+    def wrapper(*args):
+        try:
+            return wrapper._cache[args]
+        except KeyError:
+            return wrapper._cache.setdefault(args, f(*args))
+    def _clear():
+        wrapper._cache.clear()
+    wrapper._cache = {}
+    wrapper.clear = _clear
+    return wrapper
 
 
 class Evernote(object):
