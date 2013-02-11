@@ -1,5 +1,6 @@
 import hashlib
 import binascii
+import math
 from functools import wraps
 import thrift.protocol.TBinaryProtocol as TBinaryProtocol
 import thrift.transport.THttpClient as THttpClient
@@ -29,6 +30,7 @@ def cached(f):
 class Evernote(object):
 
     HOST = "www.evernote.com"
+    BATCH_SIZE = 10
 
     def __init__(self, auth_token):
         self.user_store = self.store(self.user_store_uri, UserStore)
@@ -74,8 +76,8 @@ class Evernote(object):
         if notebook_name not in self.notebooks():
             self.notebooks.clear()
         return self.notebooks()[notebook_name].guid
-    
-    def find_notes(self, **kwargs):
+
+    def _find_notes(self, offset, count, **kwargs):
         note_filter = NTypes.NoteFilter()
         if 'notebook' in kwargs:
             kwargs['notebookGuid'] = self.notebook_id(kwargs['notebook'])
@@ -84,9 +86,18 @@ class Evernote(object):
             kwargs['tagGuids'] = [self.tag_id(tag) for tag in kwargs['tags']]
             del kwargs['tags']
         note_filter.__dict__.update(kwargs)
-        result_spec = NTypes.NotesMetadataResultSpec()
-        for k in result_spec.__dict__:
-            setattr(result_spec, k, True)
-        return self.note_store.findNotesMetadata(
-            self.auth_token, note_filter, 1000, 10, result_spec)
-
+        return self.note_store.findNotes(
+            self.auth_token, note_filter, offset, count)
+        
+    def count(self, **kwargs):
+        a_note = self._find_notes(0, 1, **kwargs)
+        return a_note.totalNotes
+        
+    def find_notes(self, **kwargs):
+        count = self.count(**kwargs)
+        batches_number = int(math.ceil(float(count)/self.BATCH_SIZE))
+        for batch in range(batches_number):
+            print 'Processing batch number:', batch
+            notes = self._find_notes(batch*self.BATCH_SIZE, self.BATCH_SIZE, **kwargs)
+            for note in notes.notes:
+                yield note
