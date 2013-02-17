@@ -98,6 +98,31 @@ class Evernote(object):
         batches_number = int(math.ceil(float(count)/self.BATCH_SIZE))
         for batch in range(batches_number):
             print 'Processing batch number:', batch
-            notes = self._find_notes(batch*self.BATCH_SIZE, self.BATCH_SIZE, **kwargs)
+            notes = self._find_notes(batch*self.BATCH_SIZE, self.BATCH_SIZE,
+                                     **kwargs)
             for note in notes.notes:
                 yield note
+
+    def export(self, **kwargs):
+        for note in self.find_notes(**kwargs):
+            yield self._export_note(note)
+
+    def _export_note(self, note):
+        content = self._get_content(note.guid)
+        tags = self._get_tags(note.guid)
+        resources = self._get_resouces(note)
+        return {'content': content,
+                'tags': tags,
+                'resources': list(resources)}
+
+    def _get_content(self, guid):
+        return self.note_store.getNoteContent(self.auth_token, guid)
+
+    def _get_tags(self, guid):
+        return self.note_store.getNoteTagNames(self.auth_token, guid)
+
+    def _get_resouces(self, note):
+        for resource in note.resources:
+            yield self.note_store.getResource(self.auth_token, resource.guid,
+                                              True, True, True, True)
+
