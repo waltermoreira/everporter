@@ -3,6 +3,7 @@ import binascii
 import base64
 import json
 import math
+import os
 from functools import wraps
 from numbers import Real
 from collections import Sequence, Mapping
@@ -111,7 +112,7 @@ class Evernote(object):
             yield self._export_note(note)
 
     def json_export(self, **kwargs):
-        return json.dumps(thrift_to_json(list(self.export(**kwargs))))
+        return thrift_to_json(list(self.export(**kwargs)))
 
     def _export_note(self, note):
         content = self._get_content(note.guid)
@@ -134,6 +135,12 @@ class Evernote(object):
         for resource in note.resources:
             yield self.note_store.getResource(self.auth_token, resource.guid,
                                               True, True, True, True)
+
+    def write(self, directory, **kwargs):
+        for obj in self.json_export(**kwargs):
+            filename = os.path.join(directory, '{}.json'.format(obj['note']['guid']))
+            with open(filename, 'w') as f:
+                f.write(json.dumps(obj))
 
 def thrift_to_json(obj):
     if obj is None:
