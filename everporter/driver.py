@@ -1,7 +1,11 @@
 import hashlib
 import binascii
+import base64
+import json
 import math
 from functools import wraps
+from numbers import Real
+from collections import Sequence, Mapping
 import thrift.protocol.TBinaryProtocol as TBinaryProtocol
 import thrift.transport.THttpClient as THttpClient
 import evernote.edam.userstore.UserStore as UserStore
@@ -10,8 +14,7 @@ import evernote.edam.notestore.NoteStore as NoteStore
 import evernote.edam.type.ttypes as Types
 import evernote.edam.notestore.ttypes as NTypes
 
-authToken = "S=s1:U=88856:E=142aa964ffc:C=13b52e523fc:P=1cd:A=en-devtoken:H=bedb6afa586c565eb2d9233d552ec8a0"
-
+authToken = "S=s1:U=88856:E=14493fe99dd:C=13d3c4d6dde:P=1cd:A=en-devtoken:V=2:H=1190e8b7ed88f7530e7c3b176f41904c"
 
 def cached(f):
     @wraps(f)
@@ -107,12 +110,16 @@ class Evernote(object):
         for note in self.find_notes(**kwargs):
             yield self._export_note(note)
 
+    def json_export(self, **kwargs):
+        return json.dumps(thrift_to_json(list(self.export(**kwargs))))
+
     def _export_note(self, note):
         content = self._get_content(note.guid)
         tags = self._get_tags(note.guid)
         resources = self._get_resouces(note)
         return {'content': content,
                 'tags': tags,
+                'note': note,
                 'resources': list(resources)}
 
     def _get_content(self, guid):
@@ -122,7 +129,24 @@ class Evernote(object):
         return self.note_store.getNoteTagNames(self.auth_token, guid)
 
     def _get_resouces(self, note):
+        if note.resources is None:
+            return
         for resource in note.resources:
             yield self.note_store.getResource(self.auth_token, resource.guid,
                                               True, True, True, True)
 
+def thrift_to_json(obj):
+    if obj is None:
+        return None
+    if isinstance(obj, Real):
+        return obj
+    if isinstance(obj, str):
+        try:
+            json.dumps(obj)
+            return obj
+        except UnicodeDecodeError:
+            return {'b': base64.encodestring(obj)}
+    if isinstance(obj, Sequence):
+        return [thrift_to_json(x) for x in obj]
+    dic = obj if isinstance(obj, Mapping) else obj.__dict__
+    return {k:thrift_to_json(v) for k, v in dic.items()}
