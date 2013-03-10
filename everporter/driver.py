@@ -4,6 +4,7 @@ import base64
 import json
 import math
 import os
+import datetime
 from functools import wraps
 from numbers import Real
 from collections import Sequence, Mapping
@@ -90,6 +91,7 @@ class Evernote(object):
             kwargs['tagGuids'] = [self.tag_id(tag) for tag in kwargs['tags']]
             del kwargs['tags']
         note_filter.__dict__.update(kwargs)
+        print '_find notes with offset = {} and count = {}'.format(offset, count)
         return self.note_store.findNotes(
             self.auth_token, note_filter, offset, count)
         
@@ -112,7 +114,8 @@ class Evernote(object):
             yield self._export_note(note)
 
     def json_export(self, **kwargs):
-        return thrift_to_json(list(self.export(**kwargs)))
+        for obj in self.export(**kwargs):
+            yield thrift_to_json(obj)
 
     def _export_note(self, note):
         content = self._get_content(note.guid)
@@ -137,11 +140,30 @@ class Evernote(object):
                                               True, True, True, True)
 
     def write(self, directory, **kwargs):
+        with open(os.path.join(directory, 'notebooks.json'), 'w') as f:
+            f.write(json.dumps(thrift_to_json(self.notebooks())))
+
+        with open(os.path.join(directory, 'tags.json'), 'w') as f:
+            f.write(json.dumps(thrift_to_json(self.tags())))
+            
         for obj in self.json_export(**kwargs):
             filename = os.path.join(directory, '{}.json'.format(obj['note']['guid']))
             with open(filename, 'w') as f:
+                print 'Writing note', obj['note']['guid']
                 f.write(json.dumps(obj))
 
+    def sync(self, directory):
+        last_sync_file = os.path.join(directory, 'last_sync')
+        try:
+            f = open(last_sync_file)
+            last_sync = {'words': 'updated:{}'.format(f.readline().strip())}
+            print 'Found last_sync:', last_sync
+        except IOError:
+            last_sync = {}
+        with open(last_sync_file, 'w') as f:
+            f.write(datetime.datetime.utcnow().strftime('%Y%m%dT%H%M%SZ'))
+        self.write(directory, **last_sync)
+            
 def thrift_to_json(obj):
     if obj is None:
         return None
@@ -157,3 +179,4 @@ def thrift_to_json(obj):
         return [thrift_to_json(x) for x in obj]
     dic = obj if isinstance(obj, Mapping) else obj.__dict__
     return {k:thrift_to_json(v) for k, v in dic.items()}
+
