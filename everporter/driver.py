@@ -91,6 +91,8 @@ class Evernote(object):
             kwargs['tagGuids'] = [self.tag_id(tag) for tag in kwargs['tags']]
             del kwargs['tags']
         note_filter.__dict__.update(kwargs)
+        note_filter.order = Types.NoteSortOrder.UPDATED
+        note_filter.ascending = True
         print '_find notes with offset = {} and count = {}'.format(offset, count)
         return self.note_store.findNotes(
             self.auth_token, note_filter, offset, count)
@@ -147,23 +149,41 @@ class Evernote(object):
             f.write(json.dumps(thrift_to_json(self.tags())))
             
         for obj in self.json_export(**kwargs):
-            filename = os.path.join(directory, '{}.json'.format(obj['note']['guid']))
+            filename = os.path.join(directory,
+                                    '{}.json'.format(obj['note']['guid']))
             with open(filename, 'w') as f:
                 print 'Writing note', obj['note']['guid']
+                print ' updated on', obj['note']['updated']
                 f.write(json.dumps(obj))
+                self.set_last_sync_to(directory,
+                                      datetime.datetime.utcfromtimestamp(
+                                          obj['note']['updated']/1e3))
+                
 
     def sync(self, directory):
+        last_sync = self.get_last_sync(directory)
+        kwargs = ({'words': 'updated:{}'.format(last_sync)}
+                  if last_sync is not None else {})
+        print 'last_sync:', last_sync
+        self.write(directory, **kwargs)
+
+    def set_last_sync(self, directory):
+        self.set_last_sync_to(directory, datetime.datetime.utcnow())
+
+    def set_last_sync_to(self, directory, utc_datetime):
+        last_sync_file = os.path.join(directory, 'last_sync')
+        with open(last_sync_file, 'w') as f:
+            f.write(utc_datetime.strftime('%Y%m%dT%H%M%SZ'))
+
+    def get_last_sync(self, directory):
         last_sync_file = os.path.join(directory, 'last_sync')
         try:
             f = open(last_sync_file)
-            last_sync = {'words': 'updated:{}'.format(f.readline().strip())}
-            print 'Found last_sync:', last_sync
+            return f.readline().strip()
         except IOError:
-            last_sync = {}
-        with open(last_sync_file, 'w') as f:
-            f.write(datetime.datetime.utcnow().strftime('%Y%m%dT%H%M%SZ'))
-        self.write(directory, **last_sync)
-            
+            return None
+        
+        
 def thrift_to_json(obj):
     if obj is None:
         return None
