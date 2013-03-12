@@ -17,6 +17,7 @@ import evernote.edam.type.ttypes as Types
 import evernote.edam.notestore.ttypes as NTypes
 
 authToken = "S=s1:U=88856:E=14493fe99dd:C=13d3c4d6dde:P=1cd:A=en-devtoken:V=2:H=1190e8b7ed88f7530e7c3b176f41904c"
+DEFAULT_SYNC_DIR = os.path.expanduser('~/evernote_sync')
 
 def cached(f):
     @wraps(f)
