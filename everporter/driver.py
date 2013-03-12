@@ -66,6 +66,9 @@ class Evernote(object):
         self.note_store_url = self.user_store.getNoteStoreUrl(self.auth_token)
         self.note_store = self.store(self.note_store_url, NoteStore)
 
+        self.sync_dir = ''
+        self.last_sync_time = 0
+
     def notebooks(self):
         return self.note_store.listNotebooks(self.auth_token)
 
@@ -204,7 +207,49 @@ class Evernote(object):
             return f.readline().strip()
         except IOError:
             return None
-        
+
+    # -----
+
+    @property
+    def last_usn(self):
+        try:
+            return int(open(os.path.join(self.sync_dir, 'last_usn')).read())
+        except IOError:
+            self.last_usn = 0
+            return 0
+            
+    @last_usn.setter
+    def last_usn(self, usn):
+        with open(os.path.join(self.sync_dir, 'last_usn'), 'w') as f:
+            f.write(str(usn))
+
+    def real_sync(self):
+        sync_state = self.note_store.getSyncState(self.auth_token)
+        if sync_state.fullSyncBefore > self.last_sync_time:
+            self.full_sync()
+        if self.last_usn == sync_state.updateCount:
+            print 'No new changes'
+        else:
+            self.inc_sync()
+
+    def _synced_chunks(self, full):
+        while True:
+            chunk = self.note_store.getSyncChunk(self.auth_token,
+                                                 self.last_usn,
+                                                 self.BATCH_SIZE,
+                                                 full)
+            self.last_usn = chunk.chunkHighUSN
+            yield chunk 
+            if chunk.chunkHighUSN == chunk.updateCount:
+                break
+
+    def full_sync(self):
+        for chunk in self._synced_chunks(full=True):
+            print 'Got chunk with', len(chunk.notes), 'notes'
+            print ' last_usn =', self.last_usn
+            
+    def inc_sync(self):
+        pass
         
 def thrift_to_json(obj):
     if obj is None:
