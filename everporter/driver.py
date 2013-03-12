@@ -31,7 +31,28 @@ def cached(f):
     wrapper.clear = _clear
     return wrapper
 
+def property_with_default(x):
+    """A decorator to create a property with a default value.
 
+    Use as:
+
+        @property_with_default(5)
+        def f(self, value):
+            print 'setting with', value
+
+    Then 'x.f' will return 5 if it hasn't been set before, and 'x.f =
+    0' will set the value for 'x.f' and will execute its body.
+    """
+    def wrapper(f):
+	attr = '_' + f.func_name
+	def _do_set(obj, value):
+	    setattr(obj, attr, value)
+	    f(obj, value)
+	def _do_get(obj):
+	    return getattr(obj, attr, x)
+	return property(_do_get, _do_set)
+    return wrapper
+    
 class Evernote(object):
 
     HOST = "www.evernote.com"
