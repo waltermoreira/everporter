@@ -241,6 +241,8 @@ class Evernote(object):
                                                  self.last_usn,
                                                  self.BATCH_SIZE,
                                                  full)
+            if chunk.chunkHighUSN is None:
+                break
             yield chunk 
             self.last_usn = chunk.chunkHighUSN
             if chunk.chunkHighUSN == chunk.updateCount:
