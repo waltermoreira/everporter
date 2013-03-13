@@ -241,15 +241,32 @@ class Evernote(object):
                                                  self.last_usn,
                                                  self.BATCH_SIZE,
                                                  full)
-            self.last_usn = chunk.chunkHighUSN
             yield chunk 
+            self.last_usn = chunk.chunkHighUSN
             if chunk.chunkHighUSN == chunk.updateCount:
                 break
 
+    def _write_many(self, chunk, attr):
+        print '  Requesting', attr
+        objs = getattr(chunk, attr)
+        if objs is not None:
+            for obj in objs:
+                print '    Object', obj.name, obj.guid
+                self._write(obj)
+            
+    def _write(self, obj):
+        name = type(obj).__name__
+        with open(self.local_file(
+                '{}_{}.json'.format(name, obj.guid)), 'w') as f:
+            f.write(json.dumps(thrift_to_json(obj)))
+                      
     def full_sync(self):
         for chunk in self._synced_chunks(full=True):
-            print 'Got chunk with', len(chunk.notes), 'notes'
-            print ' last_usn =', self.last_usn
+            print 'Processing chunk with high USN', chunk.chunkHighUSN, 'last_usn =', self.last_usn
+            self._write_many(chunk, 'tags')
+            self._write_many(chunk, 'searches')
+            print 'written, last_usn =', self.last_usn
+            print
             
     def inc_sync(self):
         pass
