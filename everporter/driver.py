@@ -66,7 +66,7 @@ class Evernote(object):
         self.note_store_url = self.user_store.getNoteStoreUrl(self.auth_token)
         self.note_store = self.store(self.note_store_url, NoteStore)
 
-        self.sync_dir = ''
+        self.sync_dir = DEFAULT_SYNC_DIR
         self.last_sync_time = 0
 
     def notebooks(self):
@@ -210,17 +210,20 @@ class Evernote(object):
 
     # -----
 
+    def local_file(self, filename):
+        return os.path.join(self.sync_dir, filename)
+        
     @property
     def last_usn(self):
         try:
-            return int(open(os.path.join(self.sync_dir, 'last_usn')).read())
+            return int(open(self.local_file('last_usn')).read())
         except IOError:
             self.last_usn = 0
             return 0
             
     @last_usn.setter
     def last_usn(self, usn):
-        with open(os.path.join(self.sync_dir, 'last_usn'), 'w') as f:
+        with open(self.local_file('last_usn'), 'w') as f:
             f.write(str(usn))
 
     def real_sync(self):
