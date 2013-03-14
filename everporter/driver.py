@@ -60,7 +60,7 @@ def property_with_default(x):
 class Evernote(object):
 
     HOST = "www.evernote.com"
-    BATCH_SIZE = 10
+    BATCH_SIZE = 100
 
     def __init__(self, auth_token):
         self.user_store = self.store(self.user_store_uri, UserStore)
@@ -137,30 +137,55 @@ class Evernote(object):
             if chunk.chunkHighUSN == chunk.updateCount:
                 break
 
-    def _write_many(self, chunk, attr):
+    def _get_many(self, chunk, attr):
         print '  Requesting', attr
         objs = getattr(chunk, attr)
         if objs is not None:
             for obj in objs:
-                print '    Object', obj.name, obj.guid
-                self._write(obj)
+                print '    Object', obj.guid
+                yield obj
             
-    def _write(self, obj):
-        name = type(obj).__name__
-        with open(self.local_file(
-                '{}_{}.json'.format(name, obj.guid)), 'w') as f:
-            f.write(json.dumps(thrift_to_json(obj)))
-                      
+    def _write(self, objects):
+        for obj in objects:
+            name = type(obj).__name__
+            with open(self.local_file(
+                    '{}_{}.json'.format(name, obj.guid)), 'w') as f:
+                f.write(json.dumps(thrift_to_json(obj)))
+
+    def _get_content(self, note):
+        print ' Getting note content', note.guid,
+        note.content = self.note_store.getNoteContent(self.auth_token, note.guid)
+        print 'done'
+        return note
+
+        print '  Getting its resources',
+        full_resources = []
+        for resources in note.resources:
+            full_resources.append(self._get_resource(resource))
+        print 'done'
+        note.resources = full_resources
+
+    def _get_resource(self, resource):
+        print ' Getting resource', resource.guid,
+        res = self.note_store.getResource(self.auth_token, resource.guid,
+                                          True, True, True, True)
+        print 'done'
+        return res
+        
     def full_sync(self):
         for chunk in self._synced_chunks(full=True):
             print 'Processing chunk with high USN', chunk.chunkHighUSN, 'last_usn =', self.last_usn
             sys.stdout.flush()
-            self._write_many(chunk, 'tags')
-            self._write_many(chunk, 'searches')
-            print 'written, last_usn =', self.last_usn
-            sys.stdout.flush()
+            self._write(self._get_many(chunk, 'tags'))
+            self._write(self._get_many(chunk, 'searches'))
+            self._write(self._get_many(chunk, 'notebooks'))
+            self._write(map(self._get_content, self._get_many(chunk, 'notes')))
+            self._write(self._get_resource(resource)
+                        for note in self._get_many(chunk, 'notes')
+                        if note.resources is not None
+                        for resource in note.resources)
+            self._write(map(self._get_resource, self._get_many(chunk, 'resources')))
             print
-#            raw_input('continue? ')
             
     def inc_sync(self):
         pass
