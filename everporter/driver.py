@@ -60,7 +60,7 @@ def property_with_default(x):
 class Evernote(object):
 
     HOST = "www.evernote.com"
-    BATCH_SIZE = 100
+    BATCH_SIZE = 30
 
     def __init__(self, auth_token):
         self.user_store = self.store(self.user_store_uri, UserStore)
