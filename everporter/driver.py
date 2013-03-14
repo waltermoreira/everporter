@@ -1,3 +1,5 @@
+import sys
+import socket
 import hashlib
 import binascii
 import base64
@@ -5,6 +7,7 @@ import json
 import math
 import os
 import datetime
+import threading
 from functools import wraps
 from numbers import Real
 from collections import Sequence, Mapping
@@ -237,14 +240,24 @@ class Evernote(object):
 
     def _synced_chunks(self, full):
         while True:
-            chunk = self.note_store.getSyncChunk(self.auth_token,
-                                                 self.last_usn,
-                                                 self.BATCH_SIZE,
-                                                 full)
+            print ' Before getSyncChunk'
+            sys.stdout.flush()
+            def thunk():
+                return self.note_store.getSyncChunk(self.auth_token,
+                                                    self.last_usn,
+                                                    self.BATCH_SIZE,
+                                                    full)
+            chunk = perform(thunk, retries=3, retry_errors=[socket.error])
+            print ' After getSyncChunk and before yield'
+            sys.stdout.flush()
             if chunk.chunkHighUSN is None:
                 break
             yield chunk 
+            print ' After yield and before writing last_usn'
+            sys.stdout.flush()
             self.last_usn = chunk.chunkHighUSN
+            print ' After writing last_usn'
+            sys.stdout.flush()
             if chunk.chunkHighUSN == chunk.updateCount:
                 break
 
@@ -265,10 +278,13 @@ class Evernote(object):
     def full_sync(self):
         for chunk in self._synced_chunks(full=True):
             print 'Processing chunk with high USN', chunk.chunkHighUSN, 'last_usn =', self.last_usn
+            sys.stdout.flush()
             self._write_many(chunk, 'tags')
             self._write_many(chunk, 'searches')
             print 'written, last_usn =', self.last_usn
+            sys.stdout.flush()
             print
+#            raw_input('continue? ')
             
     def inc_sync(self):
         pass
@@ -289,3 +305,13 @@ def thrift_to_json(obj):
     dic = obj if isinstance(obj, Mapping) else obj.__dict__
     return {k:thrift_to_json(v) for k, v in dic.items()}
 
+
+def perform(f, retries, retry_errors, timeout=None):
+    for attempt in range(retries):
+        try:
+            return f()
+        except tuple(retry_errors) as exc:
+            print ('Execution of {} failed, {} retries remaining'
+                   .format(str(f), retries-attempt-1))
+            continue
+    raise exc 
