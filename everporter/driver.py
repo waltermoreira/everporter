@@ -193,6 +193,8 @@ class Evernote(object):
 def thrift_to_json(obj):
     if obj is None:
         return None
+    if isinstance(obj, Types.LazyMap):
+        return None
     if isinstance(obj, Real):
         return obj
     if isinstance(obj, str):
