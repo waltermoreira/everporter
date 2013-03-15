@@ -1,4 +1,5 @@
 import sys
+import glob
 import socket
 import hashlib
 import binascii
@@ -143,7 +144,7 @@ class Evernote(object):
         objs = getattr(chunk, attr)
         if objs is not None:
             for obj in objs:
-                print '    Object', obj.guid
+                print '    Object', getattr(obj, 'guid', str(obj))
                 yield obj
             
     def _write(self, objects):
@@ -152,6 +153,13 @@ class Evernote(object):
             with open(self.local_file(
                     '{}_{}.json'.format(name, obj.guid)), 'w') as f:
                 f.write(json.dumps(thrift_to_json(obj)))
+
+    def _expunge(self, objects):
+        for obj in objects:
+            print 'Removing', obj,
+            [filename] = glob.glob(self.local_file('*{}.json'.format(obj)))
+            print filename
+            os.unlink(filename)
 
     def _get_content(self, note):
         print ' Getting note content', note.guid,
