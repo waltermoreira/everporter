@@ -35,6 +35,18 @@ def cached(f):
     wrapper.clear = _clear
     return wrapper
 
+def persistent_property(filename, default=None):
+    def _get(self):
+        try:
+            return int(open(self.local_file(filename)).read())
+        except IOError:
+            _set(self, default)
+            return default
+    def _set(self, value):
+        with open(self.local_file(filename), 'w') as f:
+            f.write(str(value))
+    return property(_get, _set)
+
 def property_with_default(x):
     """A decorator to create a property with a default value.
 
@@ -68,9 +80,7 @@ class Evernote(object):
         self.auth_token = auth_token
         self.note_store_url = self.user_store.getNoteStoreUrl(self.auth_token)
         self.note_store = self.store(self.note_store_url, NoteStore)
-
         self.sync_dir = DEFAULT_SYNC_DIR
-        self.last_sync_time = 0
 
     def store(self, url, store_class):
         http_client = THttpClient.THttpClient(url)
@@ -91,19 +101,9 @@ class Evernote(object):
 
     def local_file(self, filename):
         return os.path.join(self.sync_dir, filename)
-        
-    @property
-    def last_usn(self):
-        try:
-            return int(open(self.local_file('last_usn')).read())
-        except IOError:
-            self.last_usn = 0
-            return 0
-            
-    @last_usn.setter
-    def last_usn(self, usn):
-        with open(self.local_file('last_usn'), 'w') as f:
-            f.write(str(usn))
+
+    last_usn = persistent_property('last_usn', 0)
+    last_sync_time = persistent_property('last_sync_time', 0)
 
     def real_sync(self):
         sync_state = self.note_store.getSyncState(self.auth_token)
@@ -124,6 +124,7 @@ class Evernote(object):
                                                     self.BATCH_SIZE,
                                                     full)
             chunk = perform(thunk, retries=3, retry_errors=[socket.error])
+            self.last_sync_time = chunk.currentTime
             print ' After getSyncChunk and before yield'
             sys.stdout.flush()
             if chunk.chunkHighUSN is None:
@@ -171,24 +172,35 @@ class Evernote(object):
                                           True, True, True, True)
         print 'done'
         return res
-        
-    def full_sync(self):
-        for chunk in self._synced_chunks(full=True):
+
+    def _do_sync(self, full=True):
+        for chunk in self._synced_chunks(full):
             print 'Processing chunk with high USN', chunk.chunkHighUSN, 'last_usn =', self.last_usn
             sys.stdout.flush()
             self._write(self._get_many(chunk, 'tags'))
             self._write(self._get_many(chunk, 'searches'))
             self._write(self._get_many(chunk, 'notebooks'))
             self._write(map(self._get_content, self._get_many(chunk, 'notes')))
-            self._write(self._get_resource(resource)
-                        for note in self._get_many(chunk, 'notes')
-                        if note.resources is not None
-                        for resource in note.resources)
-            self._write(map(self._get_resource, self._get_many(chunk, 'resources')))
+            if full:
+                self._write(map(self._get_resource, self._get_many(chunk, 'resources')))
+            else:
+                self._write(self._get_resource(resource)
+                            for note in self._get_many(chunk, 'notes')
+                            if note.resources is not None
+                            for resource in note.resources)
+                self._expunge(self._get_many(chunk, 'expungedNotes'))
+                self._expunge(self._get_many(chunk, 'expungedNotebooks'))
+                self._expunge(self._get_many(chunk, 'expungedTags'))
+                self._expunge(self._get_many(chunk, 'expungedSearches'))
             print
-            
+        
+    def full_sync(self):
+        print 'Doing full sync'
+        self._do_sync(full=True)
+        
     def inc_sync(self):
-        pass
+        print 'Doing inc sync'
+        self._do_sync(full=False)
         
 def thrift_to_json(obj):
     if obj is None:
