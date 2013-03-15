@@ -159,13 +159,6 @@ class Evernote(object):
         print 'done'
         return note
 
-        print '  Getting its resources',
-        full_resources = []
-        for resources in note.resources:
-            full_resources.append(self._get_resource(resource))
-        print 'done'
-        note.resources = full_resources
-
     def _get_resource(self, resource):
         print ' Getting resource', resource.guid,
         res = self.note_store.getResource(self.auth_token, resource.guid,
