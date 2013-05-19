@@ -157,7 +157,12 @@ class Evernote(object):
     def _expunge(self, objects):
         for obj in objects:
             print 'Removing', obj,
-            [filename] = glob.glob(self.local_file('*{}.json'.format(obj)))
+            try:
+                filenames = glob.glob(self.local_file('*{}.json'.format(obj)))
+                [filename] = filenames
+            except ValueError:
+                print 'Weird... got {} files to delete!?'.format(len(filenames))
+                return
             print filename
             os.unlink(filename)
 
