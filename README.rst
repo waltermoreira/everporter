@@ -8,8 +8,12 @@ Evernote **does not** export links between notes when using their
 export option.  So I wrote a simple script to sync the full account to
 a local directory.
 
-Each note, resource, and tag, is exported as a file with the complete
-information.
+Each note, resource, tag, saved search, and notebook, is exported as a
+file with the complete information.
+
+The synchronization is done incrementally, following Evernote
+guidelines, so the process can be run frequently.
+
 
 Using
 =====
