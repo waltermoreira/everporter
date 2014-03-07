@@ -18,10 +18,10 @@ Using
 
 - Create a developer token in Evernote_. 
 
-- Create a file `ep.conf` located in the same directory as the `ep.py`
+- Create a file ``ep.conf`` located in the same directory as the ``ep.py``
   script, containing the developer token.
 
-- Run `ep.py`
+- Run ``ep.py``
 
 .. _Evernote: https://www.evernote.com/api/DeveloperToken.action
 .. _Evernote SDK for Python: https://github.com/evernote/evernote-sdk-python/
