@@ -20,7 +20,6 @@ import evernote.edam.notestore.NoteStore as NoteStore
 import evernote.edam.type.ttypes as Types
 import evernote.edam.notestore.ttypes as NTypes
 
-authToken = "S=s1:U=88856:E=14493fe99dd:C=13d3c4d6dde:P=1cd:A=en-devtoken:V=2:H=1190e8b7ed88f7530e7c3b176f41904c"
 DEFAULT_SYNC_DIR = os.path.expanduser('~/evernote_sync')
 
 def cached(f):
@@ -69,16 +68,26 @@ def property_with_default(x):
 	    return getattr(obj, attr, x)
 	return property(_do_get, _do_set)
     return wrapper
-    
+
+def get_auth_token(filename):
+    try:
+        return open(filename).readline().strip()
+    except IOError:
+        raise Exception("Need a config file with the devtoken: '{0}'".format(filename))
+
 class Evernote(object):
 
     HOST = "www.evernote.com"
     BATCH_SIZE = 30
 
-    def __init__(self, auth_token):
+    def __init__(self, config_file):
+        """Create Evernote object from config file.
+
+        `config_file` contains a line with the devtoken from Evernote.
+        """
         self.user_store = self.store(self.user_store_uri, UserStore)
         self.check_version()
-        self.auth_token = auth_token
+        self.auth_token = get_auth_token(config_file)
         self.note_store_url = self.user_store.getNoteStoreUrl(self.auth_token)
         self.note_store = self.store(self.note_store_url, NoteStore)
         self.sync_dir = DEFAULT_SYNC_DIR
