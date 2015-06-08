@@ -14,6 +14,10 @@ file with the complete information.
 The synchronization is done incrementally, following Evernote
 guidelines, so the process can be run frequently.
 
+.. raw:: html
+
+   <hr>
+   
 
 Using
 =====
